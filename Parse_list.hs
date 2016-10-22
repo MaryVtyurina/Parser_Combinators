@@ -25,15 +25,15 @@ instance Monad m => Monad (StateM m s) where
     return v = StateM $ \s -> return (v, s)
 -- bind :: StateM m s a -> (a -> StateM m s b) -> StateM m s b
     stm >>= f = StateM $
-                    \s -> unS stm s >>=  -- (m (a,s))
-                        \(a, s') -> (unS $ f a) s'
+                    unS stm >=>
+                        (\(a, s') -> (unS $ f a) s')
 
 class Monad m => StateMonad m s
   where
       update :: (s -> s) -> m s
       set    :: s -> m s
       fetch  :: m s
-      set s   = update (\_ -> s)
+      set s   = update $ const s
       fetch   = update id
 
 instance Monad m => StateMonad (StateM m s) s where
