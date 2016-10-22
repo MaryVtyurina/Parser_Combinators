@@ -38,7 +38,7 @@ class Monad m => StateMonad m s
 
 instance Monad m => StateMonad (StateM m s) s where
       -- update :: Monad m => (s -> s) -> StateM m s s
-      update f = undefined -- \s -> result (s, f s)
+      update f =  StateM $ \s -> return (s, f s)
 
 type State s a = StateM I s a -- non-transformer -- State { unS :: s -> (a,s) }
 
@@ -94,13 +94,13 @@ type Parser a = ReaderM (StateM [] Pstring) Pos a
 ---------------------------------------------------------------------------
 item :: Parser Char
 item  =
-    ReaderM $ \pos -> StateM $ \pstr ->
+    -- ReaderM $ \pos -> StateM $ \pstr ->
 {-
     \inp -> case inp of
                       []     -> []
                       (x:xs) -> [(x,xs)]
 -}
-    [(x, pstr)
+    [x
             | (pos, x : _) <- update newstate
             , defpos    <- env
             , onside pos defpos]
