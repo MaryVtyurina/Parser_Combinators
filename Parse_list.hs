@@ -1,6 +1,6 @@
 -- Code from Monadic Parser Combinator
 
-{-#LANGUAGE MultiParamTypeClasses, TypeSynonymInstances, FlexibleInstances #-}
+{-#LANGUAGE MultiParamTypeClasses, TypeSynonymInstances, FlexibleInstances, DeriveFunctor #-}
 
 import Control.Monad
 import Control.Applicative
@@ -16,9 +16,11 @@ newtype I a = I a
 --                    Type and class for states (transformer form)
 ---------------------------------------------------------------------------
 
-newtype StateM m s a = StateM { unS :: s -> m (a,s) }
+newtype StateM m s a = StateM { unS :: s -> m (a,s) } deriving Functor
 
 type State s a = StateM I s a -- non-transformer -- State { unS :: s -> (a,s) }
+
+instance Monad m => Applicative (StateM m s) where
 
 instance Monad m => Monad (StateM m s) where
 -- result v :: a -> StateM m s a
@@ -38,16 +40,18 @@ class Monad m => StateMonad m s
 
 instance Monad m => StateMonad (StateM m s) s where
       -- update :: Monad m => (s -> s) -> StateM m s s
-      update f   = \s -> result (s, f s)
+      update f = undefined -- \s -> result (s, f s)
 
 ---------------------------------------------------------------------------
 --                    Type and class for readers (transformer form)
 ---------------------------------------------------------------------------
 
-newtype ReaderM m s a = ReaderM { unR :: s -> m a }
+newtype ReaderM m s a = ReaderM { unR :: s -> m a } deriving Functor
+
+instance Monad m => Applicative (ReaderM m s) where
 
 instance Monad m => Monad (ReaderM m s) where
-    return v  = ReaderM $ \s -> result v
+    return v  = ReaderM $ \s -> return v
     srm >>= f = ReaderM $ \s -> unR srm s >>= \a -> f a s ----------------------- adit
 
 class Monad m => ReaderMonad m s
