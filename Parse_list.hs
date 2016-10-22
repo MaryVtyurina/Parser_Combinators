@@ -18,8 +18,6 @@ newtype I a = I a
 
 newtype StateM m s a = StateM { unS :: s -> m (a,s) } deriving Functor
 
-type State s a = StateM I s a -- non-transformer -- State { unS :: s -> (a,s) }
-
 instance Monad m => Applicative (StateM m s) where
 
 instance Monad m => Monad (StateM m s) where
@@ -33,14 +31,16 @@ instance Monad m => Monad (StateM m s) where
 class Monad m => StateMonad m s
   where
       update :: (s -> s) -> m s
-      set :: s -> m s
-      fetch :: m s
+      set    :: s -> m s
+      fetch  :: m s
       set s   = update (\_ -> s)
       fetch   = update id
 
 instance Monad m => StateMonad (StateM m s) s where
       -- update :: Monad m => (s -> s) -> StateM m s s
       update f = undefined -- \s -> result (s, f s)
+
+type State s a = StateM I s a -- non-transformer -- State { unS :: s -> (a,s) }
 
 ---------------------------------------------------------------------------
 --                    Type and class for readers (transformer form)
@@ -51,8 +51,10 @@ newtype ReaderM m s a = ReaderM { unR :: s -> m a } deriving Functor
 instance Monad m => Applicative (ReaderM m s) where
 
 instance Monad m => Monad (ReaderM m s) where
-    return v  = ReaderM $ \s -> return v
-    srm >>= f = ReaderM $ \s -> unR srm s >>= \a -> f a s ----------------------- adit
+    return a  = ReaderM $ \s -> return a
+    r >>= f   = ReaderM bR where
+        bR s = unR r s >>= bM s
+        bM s a = unR (f a) s
 
 class Monad m => ReaderMonad m s
     where
