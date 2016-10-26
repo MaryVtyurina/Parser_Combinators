@@ -1,6 +1,6 @@
 -- Code from Monadic Parser Combinator
 
-{-#LANGUAGE MultiParamTypeClasses, TypeSynonymInstances, FlexibleInstances #-}
+{-#LANGUAGE MultiParamTypeClasses, TypeSynonymInstances, FlexibleInstances, DeriveFunctor #-}
 
 import Control.Monad
 import Control.Applicative
@@ -10,45 +10,57 @@ import Prelude hiding ((++), return)
 -----------------------------------------------------------
 -----------------------------------------------------------
 
-newtype I a = I a
-
 ---------------------------------------------------------------------------
 --                    Type and class for states (transformer form)
 ---------------------------------------------------------------------------
 
-newtype StateM m s a = StateM { unS :: s -> m (a,s) }
+newtype StateM m s a = StateM { unS :: s -> m (a,s) } deriving Functor
 
-type State s a = StateM I s a -- non-transformer -- State { unS :: s -> (a,s) }
+instance Monad m => Applicative (StateM m s) where
 
 instance Monad m => Monad (StateM m s) where
 -- result v :: a -> StateM m s a
     return v = StateM $ \s -> return (v, s)
 -- bind :: StateM m s a -> (a -> StateM m s b) -> StateM m s b
     stm >>= f = StateM $
-                    \s -> unS stm s >>=  -- (m (a,s))
-                        \(a, s') -> (unS $ f a) s'
+                    unS stm >=>
+                        (\(a, s') -> (unS $ f a) s')
+
+instance MonadPlus m => Alternative (StateM m s) where
+    empty     = StateM $ const mzero
+    s1 <|> s2 = StateM $ \s -> unS s1 s <|> unS s2 s
+
+instance MonadPlus m => MonadPlus (StateM m s) where
 
 class Monad m => StateMonad m s
   where
       update :: (s -> s) -> m s
-      set :: s -> m s
-      fetch :: m s
-      set s   = update (\_ -> s)
+      set    :: s -> m s
+      fetch  :: m s
+      set s   = update $ const s
       fetch   = update id
 
 instance Monad m => StateMonad (StateM m s) s where
       -- update :: Monad m => (s -> s) -> StateM m s s
-      update f   = \s -> result (s, f s)
+      update f =  StateM $ \s -> return (s, f s)
+
+-- newtype I a = I a
+--
+-- type State s a = StateM I s a -- non-transformer -- State { unS :: s -> (a,s) }
 
 ---------------------------------------------------------------------------
 --                    Type and class for readers (transformer form)
 ---------------------------------------------------------------------------
 
-newtype ReaderM m s a = ReaderM { unR :: s -> m a }
+newtype ReaderM m s a = ReaderM { unR :: s -> m a } deriving Functor
+
+instance Monad m => Applicative (ReaderM m s) where
 
 instance Monad m => Monad (ReaderM m s) where
-    return v  = ReaderM $ \s -> result v
-    srm >>= f = ReaderM $ \s -> unR srm s >>= \a -> f a s ----------------------- adit
+    return a  = ReaderM $ const $ return a
+    r >>= f   = ReaderM bR where
+        bR s = unR r s >>= bM s
+        bM s a = unR (f a) s
 
 class Monad m => ReaderMonad m s
     where
@@ -61,6 +73,10 @@ instance Monad m => ReaderMonad (ReaderM m s) s
         env = ReaderM $ \s -> return s --результат вычислений
         -- setenv :: s -> ReaderM m s a -> ReaderM m s a
         setenv s srm = ReaderM $ \_ -> unR srm s -- замена текущего состояния новым результатом
+
+instance MonadPlus m => Alternative (ReaderM m s) where
+    empty     = ReaderM $ const mzero
+    r1 <|> r2 = ReaderM $ \s -> unR r1 s <|> unR r2 s
 
 instance StateMonad m a => StateMonad (ReaderM m s) a
     where
@@ -82,28 +98,21 @@ type Parser a = ReaderM (StateM [] Pstring) Pos a
 --     Pos -> StateM [] Pstring a       ~
 --     Pos -> Pstring -> [(a, Pstring)]
 
-
 ---------------------------------------------------------------------------
 --                    Basic parser combinators
 ---------------------------------------------------------------------------
 item :: Parser Char
-item  =
-    ReaderM $ \pos -> StateM $ \pstr ->
-{-
-    \inp -> case inp of
-                      []     -> []
-                      (x:xs) -> [(x,xs)]
--}
-    [(x, pstr)
-            | (pos, x : _) <- update newstate
-            , defpos    <- env
-            , onside pos defpos]
-            {-
+item  = do
+            (pos, x : _) <- update newstate
+            defpos       <- env
+            guard $ onside pos defpos
+            return x
+{- -- cf.:
     [(x, pstr)
             | (pos, x : _) <- update newstate
             , defpos       <- env
             , onside pos defpos]
-            -}
+-}
 
 --A position is onside if its column number is strictly greater
 --than the current definition column
