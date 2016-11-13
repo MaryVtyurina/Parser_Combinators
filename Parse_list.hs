@@ -1,10 +1,10 @@
 -- Code from Monadic Parser Combinator
 
-{-#LANGUAGE MultiParamTypeClasses, TypeSynonymInstances, FlexibleInstances, DeriveFunctor #-}
+{-#LANGUAGE MultiParamTypeClasses, TypeSynonymInstances, FlexibleInstances, DeriveFunctor, MonadComprehensions #-}
 
-import Control.Monad
-import Control.Applicative
-import Prelude hiding ((++), return)
+import Control.Monad (Monad, (>>=), (>=>), return, MonadPlus, mzero, guard)
+import Control.Applicative (Applicative, Alternative, empty, (<|>))
+import Prelude
 
 -----------------------------------------------------------
 -----------------------------------------------------------
@@ -13,10 +13,11 @@ import Prelude hiding ((++), return)
 ---------------------------------------------------------------------------
 --                    Type and class for states (transformer form)
 ---------------------------------------------------------------------------
-
 newtype StateM m s a = StateM { unS :: s -> m (a,s) } deriving Functor
 
 instance Monad m => Applicative (StateM m s) where
+    pure = undefined
+    (<*>) a b = undefined
 
 instance Monad m => Monad (StateM m s) where
 -- result v :: a -> StateM m s a
@@ -31,6 +32,7 @@ instance MonadPlus m => Alternative (StateM m s) where
     s1 <|> s2 = StateM $ \s -> unS s1 s <|> unS s2 s
 
 instance MonadPlus m => MonadPlus (StateM m s) where
+
 
 class Monad m => StateMonad m s
   where
@@ -51,11 +53,12 @@ instance Monad m => StateMonad (StateM m s) s where
 ---------------------------------------------------------------------------
 --                    Type and class for readers (transformer form)
 ---------------------------------------------------------------------------
-
+--ReaderM $ const $ StateM $ const []
 newtype ReaderM m s a = ReaderM { unR :: s -> m a } deriving Functor
 
 instance Monad m => Applicative (ReaderM m s) where
-
+    pure = undefined
+    (<*>) a b = undefined
 instance Monad m => Monad (ReaderM m s) where
     return a  = ReaderM $ const $ return a
     r >>= f   = ReaderM bR where
@@ -101,12 +104,19 @@ type Parser a = ReaderM (StateM [] Pstring) Pos a
 ---------------------------------------------------------------------------
 --                    Basic parser combinators
 ---------------------------------------------------------------------------
+--item successfully consumes the first character if
+-- the input string is non-empty, and fails otherwise
 item :: Parser Char
 item  = do
             (pos, x : _) <- update newstate
             defpos       <- env
             guard $ onside pos defpos
             return x
+   --
+   -- item :: Parser Char
+   -- item  = \inp -> case inp of
+   --                    []     -> []
+   --                    (x:xs) -> [(x,xs)]
 {- -- cf.:
     [(x, pstr)
             | (pos, x : _) <- update newstate
@@ -130,36 +140,56 @@ newstate ((l,c),x:xs)
                 '\t' -> (l,((c `div` 8)+1)*8)
                 _    -> (l,c+1)
 
-{-
-first  :: Parser a -> Parser a                  --                                   ??????????????????????????????????
-first p =
-     \inp -> case p inp of
-                    []     -> []
-                    (x:xs) -> [x]
+--The first result produced by certain parsers
+first  :: Parser a -> Parser a
+first p = ReaderM f where -- do
+        f pos = StateM $ \pstr -> [head $ unS (unR p pos) pstr]
+
+--        f pos  = upd $ unR p pos
+        -- upd sa = do
+        --     a <- sa
+        --     return a
+
+    --first p =
+    --          \inp -> case p inp of
+    --                 []     -> []
+    --                 (x:xs) -> [x]
 
 (+++)  :: Parser a -> Parser a -> Parser a
-p +++ q = first (p ++ q)
+p +++ q = first (p <|> q)
 
 --Parser for white-space and comments
 string       :: String -> Parser String
-string ""     = [""]
-string (x:xs) = [x:xs | _ <- char x, _ <- string xs]
+string ""     = return ""
+string (x:xs) = char x    >>= \_ ->
+                   string xs >>= \_ ->
+                   return (x:xs)
+
 
 char  :: Char -> Parser Char
 char x = sat (\y -> x == y)
 
-bind      :: Parser a -> (a -> Parser b) -> Parser b
-p `bind` f = \inp -> concat [f v inp' | (v,inp') <- p inp]
+
+-- bind      :: Parser a -> (a -> Parser b) -> Parser b
+-- p `bind` f = \inp -> concat [f v inp' | (v,inp') <- p inp]
 
 result  :: a -> Parser a
-result v = \inp -> [(v,inp)]
+result v = ReaderM f where
+        f pos = StateM $ \pstr -> [(v, pstr)]
 
 zero :: Parser a
-zero = \inp -> []
+zero = ReaderM f where
+        f pos = StateM $ \pstr -> []
 
 sat  :: (Char -> Bool) -> Parser Char
-sat p = item `bind` \x ->
+sat p = item >>= \x ->
    if p x then result x else zero
+
+many  :: Parser a -> Parser [a]
+many p = many1 p <|> return []
+
+many1 :: Parser a -> Parser [a]
+many1 p = (:) <$> p <*> many p
 
 comment :: Parser ()
 comment = [() | _ <- string "--"
@@ -168,25 +198,26 @@ comment = [() | _ <- string "--"
 spaces :: Parser ()
 spaces = [() | _ <- many1 (sat isSpace)]
     where
-    isSpace x = (x == ' ') || (x == '\n') || (x == '\t')
+        isSpace x =
+            (x == ' ') || (x == '\n') || (x == '\t')
 
 junk :: Parser ()
 junk  = [() | _ <- setenv (0,-1) (many (spaces +++ comment))]
 
 --Combinator that parses a sequence of definitions subject
 -- to the Gofer offside rule
-many1_offside  :: Parser a -> Parser [a]
-many1_offside p = [vs | (pos,_) <- fetch
-                      , vs      <- setenv pos (many1 (off p))]
+-- many1_offside  :: Parser a -> Parser [a]
+-- many1_offside p = [vs | (pos,_) <- fetch
+--                       , vs      <- setenv pos (many1 (off p))]
 
 --Setting the definition position locally for
 --each new definition in the sequence
-off  :: Parser a -> Parser a
-off p = [v | (dl,dc)   <- env
-           , ((l,c),_) <- fetch
-           , c == dc
-           , v         <- setenv (l,dc) p]
-
+-- off  :: Parser a -> Parser a
+-- off p = [v | (dl,dc)   <- env
+--            , ((l,c),_) <- fetch
+--            , c == dc
+--            , v         <- setenv (l,dc) p]
+{-
 --Can also parse an empty sequence of definitions
 many_offside :: Parser a -> Parser [a]
 many_offside p = many1_offside p +++ [[]]
