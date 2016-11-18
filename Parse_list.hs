@@ -1,8 +1,9 @@
 -- Code from Monadic Parser Combinator
 
-{-#LANGUAGE MultiParamTypeClasses, TypeSynonymInstances, FlexibleInstances, DeriveFunctor, MonadComprehensions #-}
+{-#LANGUAGE MultiParamTypeClasses, TypeSynonymInstances, FlexibleInstances, DeriveFunctor, MonadComprehensions, InstanceSigs, ScopedTypeVariables,
+            FunctionalDependencies, UndecidableInstances #-}
 
-import Control.Monad (Monad, (>>=), (>=>), return, MonadPlus, mzero, guard)
+import Control.Monad (Monad, (>>=), (>=>), return, MonadPlus, mzero, guard, ap)
 import Control.Applicative (Applicative, Alternative, empty, (<|>))
 import Prelude
 
@@ -16,8 +17,9 @@ import Prelude
 newtype StateM m s a = StateM { unS :: s -> m (a,s) } deriving Functor
 
 instance Monad m => Applicative (StateM m s) where
-    pure = undefined
-    (<*>) a b = undefined
+    pure :: a -> StateM m s a
+    pure = return
+    (<*>) = ap
 
 instance Monad m => Monad (StateM m s) where
 -- result v :: a -> StateM m s a
@@ -34,7 +36,7 @@ instance MonadPlus m => Alternative (StateM m s) where
 instance MonadPlus m => MonadPlus (StateM m s) where
 
 
-class Monad m => StateMonad m s
+class Monad m => StateMonad m s | m -> s
   where
       update :: (s -> s) -> m s
       set    :: s -> m s
@@ -57,15 +59,15 @@ instance Monad m => StateMonad (StateM m s) s where
 newtype ReaderM m s a = ReaderM { unR :: s -> m a } deriving Functor
 
 instance Monad m => Applicative (ReaderM m s) where
-    pure = undefined
-    (<*>) a b = undefined
+    pure = return
+    (<*>) = ap
 instance Monad m => Monad (ReaderM m s) where
     return a  = ReaderM $ const $ return a
     r >>= f   = ReaderM bR where
         bR s = unR r s >>= bM s
         bM s a = unR (f a) s
 
-class Monad m => ReaderMonad m s
+class Monad m => ReaderMonad m s | m -> s
     where
         env    :: m s
         setenv :: s -> m a -> m a
@@ -202,26 +204,26 @@ spaces = [() | _ <- many1 (sat isSpace)]
             (x == ' ') || (x == '\n') || (x == '\t')
 
 junk :: Parser ()
-junk  = [() | _ <- setenv (0,-1) (many (spaces +++ comment))]
+junk  = setenv (0, -1) (many (spaces +++ comment)) >> return ()
 
 --Combinator that parses a sequence of definitions subject
 -- to the Gofer offside rule
--- many1_offside  :: Parser a -> Parser [a]
--- many1_offside p = [vs | (pos,_) <- fetch
---                       , vs      <- setenv pos (many1 (off p))]
+many1_offside  :: Parser a -> Parser [a]
+many1_offside p = [vs | (pos, _) <- fetch
+                      , vs      <- setenv pos (many1 (off p))]
 
 --Setting the definition position locally for
 --each new definition in the sequence
--- off  :: Parser a -> Parser a
--- off p = [v | (dl,dc)   <- env
---            , ((l,c),_) <- fetch
---            , c == dc
---            , v         <- setenv (l,dc) p]
-{-
+off  :: Parser a -> Parser a
+off p = [v | (dl, dc)   <- env
+           , ((l, c), _) <- fetch
+           , c == dc
+           , v         <- setenv (l, dc) p]
+
 --Can also parse an empty sequence of definitions
 many_offside :: Parser a -> Parser [a]
-many_offside p = many1_offside p +++ [[]]
--}
+many_offside p = many1_offside p +++ return []
+
 -------------------------------------------------------------------
 ---------------------------Example---------------------------------
 -------------------------------------------------------------------
