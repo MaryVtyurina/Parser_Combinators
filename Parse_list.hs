@@ -1,15 +1,12 @@
 -- Code from Monadic Parser Combinator
-
 {-#LANGUAGE MultiParamTypeClasses, TypeSynonymInstances, FlexibleInstances, DeriveFunctor, MonadComprehensions, InstanceSigs, ScopedTypeVariables,
             FunctionalDependencies, UndecidableInstances #-}
 
-import Control.Monad (Monad, (>>=), (>=>), return, MonadPlus, mzero, guard, ap)
+module Parse_list where
+
+import Control.Monad (Monad, (>>=), (>=>), return, MonadPlus, mzero, mplus, guard, ap)
 import Control.Applicative (Applicative, Alternative, empty, (<|>))
 import Prelude
-
------------------------------------------------------------
------------------------------------------------------------
------------------------------------------------------------
 
 ---------------------------------------------------------------------------
 --                    Type and class for states (transformer form)
@@ -34,7 +31,8 @@ instance MonadPlus m => Alternative (StateM m s) where
     s1 <|> s2 = StateM $ \s -> unS s1 s <|> unS s2 s
 
 instance MonadPlus m => MonadPlus (StateM m s) where
-
+    mzero = empty -- StateM $ const
+    mplus = (<|>) -- StateM $ \s -> unS s1 s `mplus` unS s2 s
 
 class Monad m => StateMonad m s | m -> s
   where
@@ -143,9 +141,13 @@ newstate ((l,c),x:xs)
                 _    -> (l,c+1)
 
 --The first result produced by certain parsers
-first  :: Parser a -> Parser a
-first p = ReaderM f where -- do
-        f pos = StateM $ \pstr -> [head $ unS (unR p pos) pstr]
+first :: Parser a -> Parser a
+first p = ReaderM f where
+        arg pos pstr = unS (unR p pos) pstr
+        f pos = StateM $ \pstr ->
+            -- let
+            --     arg = unS (unR p pos) pstr in
+                if null $ arg pos pstr then [] else [head $ arg pos pstr]
 
 --        f pos  = upd $ unR p pos
         -- upd sa = do
@@ -306,4 +308,4 @@ many_offside p = many1_offside p +++ return []
 --         where f [t] = t
 --               f ts  = Tuple ts
 
-main = undefined
+-- main = undefined
