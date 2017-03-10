@@ -59,6 +59,7 @@ newtype ReaderM m s a = ReaderM { unR :: s -> m a } deriving Functor
 instance Monad m => Applicative (ReaderM m s) where
     pure = return
     (<*>) = ap
+
 instance Monad m => Monad (ReaderM m s) where
     return a  = ReaderM $ const $ return a
     r >>= f   = ReaderM bR where
@@ -169,10 +170,8 @@ string (x:xs) = char x    >>= \_ ->
                    string xs >>= \_ ->
                    return (x:xs)
 
-
 char  :: Char -> Parser Char
 char x = sat (\y -> x == y)
-
 
 -- bind      :: Parser a -> (a -> Parser b) -> Parser b
 -- p `bind` f = \inp -> concat [f v inp' | (v,inp') <- p inp]
@@ -195,6 +194,70 @@ many p = many1 p <|> return []
 many1 :: Parser a -> Parser [a]
 many1 p = (:) <$> p <*> many p
 
+token  :: Parser a -> Parser a
+token p = do
+            v <- p
+            _ <- junk
+            return v
+--
+digit :: Parser Char
+digit = sat (\x -> '0' <= x && x <= '9')
+
+symbol :: String -> Parser String
+symbol xs = token (string xs)
+
+lower :: Parser Char
+lower = sat (\x -> 'a' <= x && x <= 'z')
+
+upper :: Parser Char
+upper = sat (\x -> 'A' <= x && x <= 'Z')
+
+plus :: Parser a -> Parser a -> Parser a
+plus = (+++)
+
+letter :: Parser Char
+letter = lower `plus` upper
+
+alphanum :: Parser Char
+alphanum  = letter `plus` digit
+
+--parser for identifiers (lower-case letter followed by zero or more alpha-numeric characters)
+ident :: Parser String
+ident  = do
+            x <- lower
+            xs <- many alphanum
+            return $ x : xs
+
+--keyword check (takes a list of keywords as an argument)
+identifier :: [String] -> Parser String
+identifier ks = do
+                  x <- ident
+                  guard $ not (elem x ks)
+                  token $ return x
+
+bracket :: Parser a -> Parser b -> Parser c -> Parser b
+bracket open p close = do
+      _ <- open
+      x <- p
+      _ <- close
+      return x
+
+-- for possibly-empty sequences
+sepby :: Parser a -> Parser b -> Parser [a]
+p `sepby` sep  = (p `sepby1` sep) -- ++ [[]]  -- ????? монада? подойдет ли zero?
+
+--  like many1, but instances of p are separated by a parser sep whose result values are ignored
+sepby1 :: Parser a -> Parser b -> Parser [a]
+p `sepby1` sep = do
+                  x <-p
+                  xs <- many f
+                  return (x:xs)
+                      where
+                          f = do
+                                  _ <- sep
+                                  y <- p
+                                  return y
+
 comment :: Parser ()
 comment = [() | _ <- string "--"
             , _ <- many (sat (\x -> x /= '\n'))]
@@ -208,7 +271,7 @@ spaces = [() | _ <- many1 (sat isSpace)]
 junk :: Parser ()
 junk  = setenv (0, -1) (many (spaces +++ comment)) >> return ()
 
---Combinator that parses a sequence of definitions subject
+-- Combinator that parses a sequence of definitions subject
 -- to the Gofer offside rule
 many1_offside  :: Parser a -> Parser [a]
 many1_offside p = [vs | (pos, _) <- fetch
@@ -226,86 +289,6 @@ off p = [v | (dl, dc)   <- env
 many_offside :: Parser a -> Parser [a]
 many_offside p = many1_offside p +++ return []
 
--------------------------------------------------------------------
----------------------------Example---------------------------------
--------------------------------------------------------------------
---
---
--- -- class Monad m => Monad0Plus m where
--- -- zero :: m a
--- -- (++) :: m a -> m a -> m a
---
--- -- instance Monad0Plus Parser a where
--- -- -- zero :: Parser a
--- -- zero     = \inp -> []
--- -- -- (++) :: Parser a -> Parser a -> Parser a
--- -- p ++ q   = \inp -> (p inp ++ q inp)
---
--- type Data = (String,            -- type name
---             [String],           -- parametrs
---             [(String, [Type])]) -- constructors and arguments
--- datadecls = many_offside datadecl
---
--- datadecl = [(x,xs,b) | _  <- symbol "data"
---                      , x  <- constructor
---                      , xs <- many variable
---                      , _  <- symbol "="
---                      , b  <- condecl `sepby` symbol "|"]
---
--- token  :: Parser a -> Parser a
--- token p = [v | v <- p, _ <- junk]
---
--- symbol :: String -> Parser String
--- symbol xs = token (string xs)
---
--- constructor = token [(x, xs) | x  <- upper
---                              , xs <- many alphanum]
---
--- variable = identifer ["data"]
---
--- condecl = [(x, ts) | x  <- constructor
---                    , ts <- many type2]
---
--- bracket :: Parser a -> Parser b -> Parser c -> Parser b
--- bracket open p close = [x | _ <- open, x <- p, _ <- close]
---
--- sepby :: Parser a -> Parser b -> Parser [a]
--- p `sepby` sep  = (p `sepby1` sep) ++ [[]]
---
--- sepby1 :: Parser a -> Parser b -> Parser [a]
--- p `sepby1` sep = [x:xs|x <-p
---                       , xs <- many [y | _ <- sep, y <- p]]
---
--- data Type = Arrow Type Type -- function
---           | Apply Type Type -- Application
---           | Var String      -- variable
---           | Con String      -- constructor
---           | Tuple [Type]    -- Tuple
---           | List Type       -- List
---
--- first  :: Parser a -> Parser a
--- first p = \inp -> case p inp of
---                     []     -> []
---                     (x:xs) -> [x]
---
--- (+++)  :: Parser a -> Parser a -> Parser a
--- p +++ q = first (p ++ q)
---
--- type0 :: Parser Type
--- type0 = type1 `chainr1` [Arrow | _ <- symbol "->"]
--- type1 = type2 `chainl1` [Apply]
--- type2 = var +++ con +++ list +++ tuple
---
--- var = [Var x | x <-variable]
--- con = [Con x | x <- constructor]
--- list = [List x | x <- bracket (symbol "[")
---                               type0
---                               (symbol "]")]
--- tuple = [f ts | ts <- bracket
---                           (symbol "(")
---                           (type0 `sepby` symbol ",")
---                           (symbol ")")]
---         where f [t] = t
---               f ts  = Tuple ts
-
--- main = undefined
+--TODO
+-- тесты
+-- починить many_offside

@@ -1,3 +1,4 @@
-data List a = Nil | Cons a (List a)
-data Tree a b = Leaf a
-             | Node (Tree a b, b, Tree a b)
+data Tree a b = Leaf a | Node (Tree a b, b, Tree a b)
+data Tree a b = Leaf a | Node (Tree a b, b, Tree a b)
+
+a
