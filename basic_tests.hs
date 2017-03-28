@@ -34,16 +34,31 @@ test_char2 = parse (char 'c') "dog" == []
 -- tests
 test_zero = parse zero "xxx"
 ----
--- tests
+-- tests digit
+test_digit1 = parse digit "342" == [('3',((1,2),"42"))]
+test_digit2 = parse digit "lalala" == []
+----
+-- tests symbol
+test_symbol1 = parse (symbol "23") "1234" == []
+test_symbol2 = parse (symbol "123") "1234" == [("123",((1,4),"4"))]
+----
+-- tests lower & upper
+test_lower1 = parse lower "abc" == [('a',((1,2),"bc"))]
+test_lower2 = parse lower "1abc" == []
+
+test_upper1 = parse upper "ABC" == [('A',((1,2),"BC"))]
+test_upper2 = parse upper "abc" == []
+----
+-- tests letter & alphanum
+test_letter1 = parse letter "Abc" == [('A',((1,2),"bc"))]
+test_letter2 = parse letter "abc" == [('a',((1,2),"bc"))]
+
+test_alphanum1 = parse alphanum "123" == [('1',((1,2),"23"))]
+test_alphanum2 = parse alphanum "abc" == [('a',((1,2),"bc"))]
 
 ----
--- tests
-----
--- tests
-----
--- tests
-----
--- tests
+-- tests bracket
+test_br1 = parse (bracket (char '[') alphanum (char ']')) "[a]" == [('a',((1,4),""))]
 ----
 -- tests
 ----

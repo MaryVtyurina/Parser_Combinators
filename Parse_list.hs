@@ -105,14 +105,25 @@ type Parser a = ReaderM (StateM [] Pstring) Pos a
 ---------------------------------------------------------------------------
 --                    Basic parser combinators
 ---------------------------------------------------------------------------
---item successfully consumes the first character if
--- the input string is non-empty, and fails otherwise
-item :: Parser Char
+-- item successfully consumes the first character if
+-- the input string is non-empty, and fails if the position of the character to be consumed
+-- is not onside with respect to current definition position
+-- item :: Parser Char
 item  = do
             (pos, x : _) <- update newstate
             defpos       <- env
             guard $ onside pos defpos
             return x
+
+-- item :: Parser Char
+-- item  = Parser f where
+--         f [] = zero
+--         f (x : xs) = p
+--         p =  do
+--                 (pos, x : _) <- update newstate
+--                 defpos       <- env
+--                 guard $ onside pos defpos
+--                 return x
 
 --A position is onside if its column number is strictly greater
 --than the current definition column
@@ -173,12 +184,23 @@ sat  :: (Char -> Bool) -> Parser Char
 sat p = item >>= \x ->
    if p x then return x else zero
 
+-- TODO add test
+-- applies a parser p zero or more times to an input string
 many  :: Parser a -> Parser [a]
 many p = many1 p <|> return []
 
+-- many  :: Parser a -> Parser [a]
+-- many p = do
+--             x <- p
+--             xs <- many p
+--             return $ (x : xs) ++ []
+
+--non-empty sequences of items
 many1 :: Parser a -> Parser [a]
 many1 p = (:) <$> p <*> many p
 
+-- removes junk after applying a parser
+-- TODO add test
 token  :: Parser a -> Parser a
 token p = do
             v <- p
@@ -206,6 +228,7 @@ letter = lower `plus` upper
 alphanum :: Parser Char
 alphanum  = letter `plus` digit
 
+-- TODO add test
 --parser for identifiers (lower-case letter followed by zero or more alpha-numeric characters)
 ident :: Parser String
 ident  = do
@@ -213,6 +236,7 @@ ident  = do
             xs <- many alphanum
             return $ x : xs
 
+-- TODO add test
 --keyword check (takes a list of keywords as an argument)
 identifier :: [String] -> Parser String
 identifier ks = do
@@ -227,6 +251,7 @@ bracket open p close = do
       _ <- close
       return x
 
+-- TODO add test
 -- for possibly-empty sequences
 sepby :: Parser a -> Parser b -> Parser [a]
 p `sepby` sep  = (p `sepby1` sep) -- ++ [[]]  -- ????? монада? подойдет ли zero?
@@ -234,7 +259,7 @@ p `sepby` sep  = (p `sepby1` sep) -- ++ [[]]  -- ????? монада? подой�
 --  like many1, but instances of p are separated by a parser sep whose result values are ignored
 sepby1 :: Parser a -> Parser b -> Parser [a]
 p `sepby1` sep = do
-                  x <-p
+                  x <- p
                   xs <- many f
                   return (x:xs)
                       where
