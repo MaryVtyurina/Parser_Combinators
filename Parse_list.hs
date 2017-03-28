@@ -108,22 +108,14 @@ type Parser a = ReaderM (StateM [] Pstring) Pos a
 -- item successfully consumes the first character if
 -- the input string is non-empty, and fails if the position of the character to be consumed
 -- is not onside with respect to current definition position
--- item :: Parser Char
-item  = do
-            (pos, x : _) <- update newstate
+
+item  = p <|> zero where
+        p = do
+            (pos, inp) <- update newstate
+            guard $ not $ null inp
             defpos       <- env
             guard $ onside pos defpos
-            return x
-
--- item :: Parser Char
--- item  = Parser f where
---         f [] = zero
---         f (x : xs) = p
---         p =  do
---                 (pos, x : _) <- update newstate
---                 defpos       <- env
---                 guard $ onside pos defpos
---                 return x
+            return $ head inp
 
 --A position is onside if its column number is strictly greater
 --than the current definition column

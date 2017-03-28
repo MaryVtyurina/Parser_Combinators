@@ -1,0 +1,5 @@
+all: Parse_for_data_definition
+	./Parse_for_data_definition
+
+Parse_for_data_definition: Parse_for_data_definition.hs
+	ghc Parse_for_data_definition.hs
