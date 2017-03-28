@@ -78,10 +78,12 @@ datadecl = do
 
 datadecls = many_offside datadecl
 
-parse p s = unS (unR p (1,1)) ((1,1), s)
-
 main = do
     s <- readFile "test.txt"
     -- print $ parse list "[a] a"
     print $ parse datadecls s
     -- mapM_ (putStrLn . show) $ parse datadecl s
+
+--TODO
+-- тесты
+-- починить many_offside

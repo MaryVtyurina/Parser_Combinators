@@ -113,17 +113,6 @@ item  = do
             defpos       <- env
             guard $ onside pos defpos
             return x
-   --
-   -- item :: Parser Char
-   -- item  = \inp -> case inp of
-   --                    []     -> []
-   --                    (x:xs) -> [(x,xs)]
-{- -- cf.:
-    [(x, pstr)
-            | (pos, x : _) <- update newstate
-            , defpos       <- env
-            , onside pos defpos]
--}
 
 --A position is onside if its column number is strictly greater
 --than the current definition column
@@ -150,21 +139,13 @@ first p = ReaderM f where
             --     arg = unS (unR p pos) pstr in
                 if null $ arg pos pstr then [] else [head $ arg pos pstr]
 
---        f pos  = upd $ unR p pos
-        -- upd sa = do
-        --     a <- sa
-        --     return a
 
-    --first p =
-    --          \inp -> case p inp of
-    --                 []     -> []
-    --                 (x:xs) -> [x]
-
+--it takes smth, applies both argument parsers to this smth, and concatenates the resulting lists(if p succeeds then q is never applied)
 (+++)  :: Parser a -> Parser a -> Parser a
 p +++ q = first (p <|> q)
 
---Parser for white-space and comments
-string       :: String -> Parser String
+
+string :: String -> Parser String
 string ""     = return ""
 string (x:xs) = char x    >>= \_ ->
                    string xs >>= \_ ->
@@ -176,17 +157,21 @@ char x = sat (\y -> x == y)
 -- bind      :: Parser a -> (a -> Parser b) -> Parser b
 -- p `bind` f = \inp -> concat [f v inp' | (v,inp') <- p inp]
 
-result  :: a -> Parser a
-result v = ReaderM f where
-        f pos = StateM $ \pstr -> [(v, pstr)]
+-- result  :: a -> Parser a
+-- result v = ReaderM f where
+--         f pos = StateM $ \pstr -> [(v, pstr
 
+-- always fails, regardless of the input string
 zero :: Parser a
 zero = ReaderM f where
         f pos = StateM $ \pstr -> []
 
+-- takes a predicate (a Boolean valued function),
+-- and yields a parser that consumes a single character if it satisfies the predicate
+-- and fails otherwise
 sat  :: (Char -> Bool) -> Parser Char
 sat p = item >>= \x ->
-   if p x then result x else zero
+   if p x then return x else zero
 
 many  :: Parser a -> Parser [a]
 many p = many1 p <|> return []
@@ -289,6 +274,4 @@ off p = [v | (dl, dc)   <- env
 many_offside :: Parser a -> Parser [a]
 many_offside p = many1_offside p +++ return []
 
---TODO
--- тесты
--- починить many_offside
+parse p s = unS (unR p (1,1)) ((1,1), s)
