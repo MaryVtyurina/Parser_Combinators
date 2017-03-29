@@ -1,9 +1,9 @@
 -------------------------------------------------------------------
----------------------------Example---------------------------------
+--                          Example
 -------------------------------------------------------------------
--- /Users/Maria/Library/Haskell/bin/ghcid "--command=ghci Parse_list.hs"-- for ghcid
+-- /Users/Maria/Library/Haskell/bin/ghcid "--command=ghci Parse_list.hs"     -- for ghcid
 
-import Parse_list
+import ParserCombinators
 import Control.Applicative hiding (many)
 
 {-#LANGUAGE MultiParamTypeClasses, MonadComprehensions #-}
@@ -76,14 +76,11 @@ datadecl = do
              b  <- condecl `sepby` symbol "|"
              return (x,xs,b)
 
-datadecls = many_offside datadecl
+
+datadecls = first $ many_offside $ many datadecl
 
 main = do
     s <- readFile "test.txt"
     -- print $ parse list "[a] a"
-    print $ parse datadecls s
-    -- mapM_ (putStrLn . show) $ parse datadecl s
-
---TODO
--- тесты
--- починить many_offside
+    -- print $ parse datadecls s
+    mapM_ (putStrLn . show) $ parse datadecls s

@@ -2,90 +2,12 @@
 {-#LANGUAGE MultiParamTypeClasses, TypeSynonymInstances, FlexibleInstances, DeriveFunctor, MonadComprehensions, InstanceSigs, ScopedTypeVariables,
             FunctionalDependencies, UndecidableInstances #-}
 
-module Parse_list where
+module ParserCombinators where
 
-import Control.Monad (Monad, (>>=), (>=>), return, MonadPlus, mzero, mplus, guard, ap)
-import Control.Applicative (Applicative, Alternative, empty, (<|>))
+import Control.Monad ((>>=), return, guard)
+import Control.Applicative ((<|>))
 import Prelude
-
----------------------------------------------------------------------------
---                    Type and class for states (transformer form)
----------------------------------------------------------------------------
-newtype StateM m s a = StateM { unS :: s -> m (a,s) } deriving Functor
-
-instance Monad m => Applicative (StateM m s) where
-    pure :: a -> StateM m s a
-    pure = return
-    (<*>) = ap
-
-instance Monad m => Monad (StateM m s) where
--- result v :: a -> StateM m s a
-    return v = StateM $ \s -> return (v, s)
--- bind :: StateM m s a -> (a -> StateM m s b) -> StateM m s b
-    stm >>= f = StateM $
-                    unS stm >=>
-                        (\(a, s') -> (unS $ f a) s')
-
-instance MonadPlus m => Alternative (StateM m s) where
-    empty     = StateM $ const mzero
-    s1 <|> s2 = StateM $ \s -> unS s1 s <|> unS s2 s
-
-instance MonadPlus m => MonadPlus (StateM m s) where
-    mzero = empty -- StateM $ const
-    mplus = (<|>) -- StateM $ \s -> unS s1 s `mplus` unS s2 s
-
-class Monad m => StateMonad m s | m -> s
-  where
-      update :: (s -> s) -> m s
-      set    :: s -> m s
-      fetch  :: m s
-      set s   = update $ const s
-      fetch   = update id
-
-instance Monad m => StateMonad (StateM m s) s where
-      -- update :: Monad m => (s -> s) -> StateM m s s
-      update f =  StateM $ \s -> return (s, f s)
-
--- newtype I a = I a
---
--- type State s a = StateM I s a -- non-transformer -- State { unS :: s -> (a,s) }
-
----------------------------------------------------------------------------
---                    Type and class for readers (transformer form)
----------------------------------------------------------------------------
---ReaderM $ const $ StateM $ const []
-newtype ReaderM m s a = ReaderM { unR :: s -> m a } deriving Functor
-
-instance Monad m => Applicative (ReaderM m s) where
-    pure = return
-    (<*>) = ap
-
-instance Monad m => Monad (ReaderM m s) where
-    return a  = ReaderM $ const $ return a
-    r >>= f   = ReaderM bR where
-        bR s = unR r s >>= bM s
-        bM s a = unR (f a) s
-
-class Monad m => ReaderMonad m s | m -> s
-    where
-        env    :: m s
-        setenv :: s -> m a -> m a
-
-instance Monad m => ReaderMonad (ReaderM m s) s
-    where
-        -- env :: ReaderM m s s
-        env = ReaderM $ \s -> return s --результат вычислений
-        -- setenv :: s -> ReaderM m s a -> ReaderM m s a
-        setenv s srm = ReaderM $ \_ -> unR srm s -- замена текущего состояния новым результатом
-
-instance MonadPlus m => Alternative (ReaderM m s) where
-    empty     = ReaderM $ const mzero
-    r1 <|> r2 = ReaderM $ \s -> unR r1 s <|> unR r2 s
-
-instance StateMonad m a => StateMonad (ReaderM m s) a
-    where
-        update f   = ReaderM $ \_ -> update f
-
+import States_Readers
 ---------------------------------------------------------------------------
 --                               Parser type
 ---------------------------------------------------------------------------
@@ -157,13 +79,6 @@ string (x:xs) = char x    >>= \_ ->
 char  :: Char -> Parser Char
 char x = sat (\y -> x == y)
 
--- bind      :: Parser a -> (a -> Parser b) -> Parser b
--- p `bind` f = \inp -> concat [f v inp' | (v,inp') <- p inp]
-
--- result  :: a -> Parser a
--- result v = ReaderM f where
---         f pos = StateM $ \pstr -> [(v, pstr
-
 -- always fails, regardless of the input string
 zero :: Parser a
 zero = ReaderM f where
@@ -176,23 +91,15 @@ sat  :: (Char -> Bool) -> Parser Char
 sat p = item >>= \x ->
    if p x then return x else zero
 
--- TODO add test
 -- applies a parser p zero or more times to an input string
 many  :: Parser a -> Parser [a]
 many p = many1 p <|> return []
-
--- many  :: Parser a -> Parser [a]
--- many p = do
---             x <- p
---             xs <- many p
---             return $ (x : xs) ++ []
 
 --non-empty sequences of items
 many1 :: Parser a -> Parser [a]
 many1 p = (:) <$> p <*> many p
 
 -- removes junk after applying a parser
--- TODO add test
 token  :: Parser a -> Parser a
 token p = do
             v <- p
@@ -220,7 +127,6 @@ letter = lower `plus` upper
 alphanum :: Parser Char
 alphanum  = letter `plus` digit
 
--- TODO add test
 --parser for identifiers (lower-case letter followed by zero or more alpha-numeric characters)
 ident :: Parser String
 ident  = do
@@ -228,11 +134,11 @@ ident  = do
             xs <- many alphanum
             return $ x : xs
 
--- TODO add test
---keyword check (takes a list of keywords as an argument)
+-- keyword check (takes a list of keywords as an argument)
+-- keyword is a string that is not permitted as an identifier
 identifier :: [String] -> Parser String
 identifier ks = do
-                  x <- ident
+                  x <- (first ident)
                   guard $ not (elem x ks)
                   token $ return x
 
@@ -243,14 +149,9 @@ bracket open p close = do
       _ <- close
       return x
 
--- TODO add test
--- for possibly-empty sequences
-sepby :: Parser a -> Parser b -> Parser [a]
-p `sepby` sep  = (p `sepby1` sep) -- ++ [[]]  -- ????? монада? подойдет ли zero?
-
 --  like many1, but instances of p are separated by a parser sep whose result values are ignored
-sepby1 :: Parser a -> Parser b -> Parser [a]
-p `sepby1` sep = do
+sepby :: Parser a -> Parser b -> Parser [a]
+p `sepby` sep = do
                   x <- p
                   xs <- many f
                   return (x:xs)
@@ -273,22 +174,22 @@ spaces = [() | _ <- many1 (sat isSpace)]
 junk :: Parser ()
 junk  = setenv (0, -1) (many (spaces +++ comment)) >> return ()
 
+--Setting the definition position locally for
+--each new definition in the sequence
+off  :: Parser a -> Parser a
+off p = [v | (dl, dc)    <- env
+           , ((l, c), _) <- fetch
+           , c == dc
+           , v           <- setenv (l, dc) p]
+
 -- Combinator that parses a sequence of definitions subject
 -- to the Gofer offside rule
 many1_offside  :: Parser a -> Parser [a]
 many1_offside p = [vs | (pos, _) <- fetch
                       , vs      <- setenv pos (many1 (off p))]
 
---Setting the definition position locally for
---each new definition in the sequence
-off  :: Parser a -> Parser a
-off p = [v | (dl, dc)   <- env
-           , ((l, c), _) <- fetch
-           , c == dc
-           , v         <- setenv (l, dc) p]
-
 --Can also parse an empty sequence of definitions
 many_offside :: Parser a -> Parser [a]
-many_offside p = many1_offside p +++ return []
+many_offside p = many1_offside p <|> return []
 
 parse p s = unS (unR p (1,1)) ((1,1), s)

@@ -1,4 +1,4 @@
-import Parse_list
+import ParserCombinators
 
 -- tests item
 test_item1 = parse item "lala" == [('l',((1,2),"ala"))]
@@ -59,6 +59,37 @@ test_alphanum2 = parse alphanum "abc" == [('a',((1,2),"bc"))]
 ----
 -- tests bracket
 test_br1 = parse (bracket (char '[') alphanum (char ']')) "[a]" == [('a',((1,4),""))]
+----
+-- tests many & many1
+test_many_1 = parse (first $ many digit) "1234" == [("1234",((1,5),""))]
+test_many_2 = parse (first $ many digit) "" == [("",((1,1),""))]
+
+test_many1_1 = parse (first $ many1 digit) "1234" == [("1234",((1,5),""))]
+test_many1_2 = parse (first $ many1 digit) "1234" == []
+----
+-- tests token
+test_token1 = parse (token $ first $ many digit) "12   11" == [("12",((1,6),"11")),("12",((1,3),"   11"))]
+----
+-- tests ident & identifier
+test_ident1 = parse (first ident) "lama12" == [("lama12",((1,7),""))]
+test_ident2 = parse (first ident) "12lama" == []
+
+test_identifier1 = parse (identifier ["case", "where", "let"]) "lama12" == [("lama12",((1,7),""))]
+test_identifier2 = parse (identifier ["case", "where", "let"]) "let" == []
+----
+-- tests sepby
+test_sepby1_1 = parse (first (sepby (many digit) lower)) "12aaa11" == [(["12","","","11"],((1,8),""))]
+test_sepby1_2 = parse (first (sepby (many digit) lower)) "" == [([""],((1,1),""))]
+----
+-- tests comment & spaces & junk
+test_comment1 = parse (first comment) "-- comment\n word" == [((),((1,11),"\n word"))]
+test_comment2 = parse (comment) "word -- comment\n word" == []
+
+test_spaces1 = parse (first spaces) "   word   " == [((),((1,4),"word   "))]
+test_spaces2 = parse (first spaces) "word   " == []
+
+test_junk1 = parse (first junk) "--comment     comment\n      word" == [((),((2,6),"word"))]
+test_junk2 = parse (first junk) "word    -- comment" == [((),((1,1),"word    -- comment"))]
 ----
 -- tests
 ----
