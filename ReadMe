@@ -1,1 +1,2 @@
-Working program on Haskell from article "Monadic Parser Combinators" by Graham Hutton and Erik Meijer
+Parser for data definition on Haskell language
+Idea from article "Monadic Parser Combinators" by Graham Hutton and Erik Meijer
