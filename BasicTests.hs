@@ -2,7 +2,7 @@ import ParserCombinators
 
 -- tests item
 test_item1 = parse item "lala" == [('l',((1,2),"ala"))]
-test_item2 = parse item ""    -- exception
+test_item2 = parse item "" == []
 ----
 --tests onside
 test_onside1 = onside (1,5) (3,4) == onside (1,2) (1,3)
@@ -91,13 +91,24 @@ test_spaces2 = parse (first spaces) "word   " == []
 test_junk1 = parse (first junk) "--comment     comment\n      word" == [((),((2,6),"word"))]
 test_junk2 = parse (first junk) "word    -- comment" == [((),((1,1),"word    -- comment"))]
 ----
--- tests
-----
--- tests
-----
--- tests
-----
--- tests
-----
--- tests
-----
+type Name = String
+type Results = [Bool]
+data Test = Test Name Results deriving Show
+
+main = do
+        print $ Test "item" [test_item1, test_item2]
+        print $ Test "onside" [test_onside1, test_onside2]
+        print $ Test "newstate" [test_newstate1, test_newstate2]
+        print $ Test "first" [test_first1]
+        print $ Test "+++" [test_1, test_2]
+        print $ Test "char_string" [test_char1, test_char2, test_string1, test_string2]
+        print $ Test "digit" [test_digit1, test_digit2]
+        print $ Test "symbol_lower_upper" [test_symbol1, test_symbol2, test_lower1, test_lower2, test_upper1, test_upper2]
+        print $ Test "letter_alphanum" [test_letter1, test_letter2, test_alphanum1, test_alphanum2]
+        print $ Test "bracket" [test_br1]
+        print $ Test "many" [test_many_1, test_many_2, test_many1_1, test_many1_2]
+        print $ Test "token" [test_token1]
+        print $ Test "ident_identifier" [test_ident1, test_ident2, test_identifier1, test_identifier2]
+        print $ Test "sepby" [test_sepby1_1, test_sepby1_2]
+        print $ Test "comment_spaces" [test_comment1, test_comment2, test_spaces1, test_spaces2]
+        print $ Test "junk" [test_junk1, test_junk2]
