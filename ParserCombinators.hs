@@ -13,7 +13,7 @@ import States_Readers
 ---------------------------------------------------------------------------
 
 type Pstring  = (Pos,String)
-type Pos      = (Int,Int)
+type Pos      = (Int,Int) -- (line, column)
 
 type Parser a = ReaderM (StateM [] Pstring) Pos a
 
@@ -63,7 +63,6 @@ first p = ReaderM f where
             -- let
             --     arg = unS (unR p pos) pstr in
                 if null $ arg pos pstr then [] else [head $ arg pos pstr]
-
 
 --it takes smth, applies both argument parsers to this smth, and concatenates the resulting lists(if p succeeds then q is never applied)
 (+++)  :: Parser a -> Parser a -> Parser a
@@ -161,6 +160,23 @@ p `sepby` sep = do
                                   y <- p
                                   return y
 
+-- parses non empty sequences of items separated by operators that associate to the right, rather than to the left
+chainr1 :: Parser a -> Parser (a -> a -> a) -> Parser a
+p `chainr1` op = rec <|> p where
+      rec = do
+                  x <- p
+                  f <- op
+                  y <- p `chainr1` op
+                  return $ f x y
+
+chainl1 :: Parser a -> Parser (a -> a -> a) -> Parser a
+p `chainl1` op = p >>= rest where
+  rest x = one x <|> return x
+  one x = do
+      f <- op
+      y <- p
+      rest (f x y)
+
 comment :: Parser ()
 comment = [() | _ <- string "--"
             , _ <- many (sat (\x -> x /= '\n'))]
@@ -186,10 +202,10 @@ off p = [v | (dl, dc)    <- env
 -- to the Gofer offside rule
 many1_offside  :: Parser a -> Parser [a]
 many1_offside p = [vs | (pos, _) <- fetch
-                      , vs      <- setenv pos (many1 (off p))]
+                      , vs       <- setenv pos (many1 (off p))]
 
 --Can also parse an empty sequence of definitions
 many_offside :: Parser a -> Parser [a]
 many_offside p = many1_offside p <|> return []
 
-parse p s = unS (unR p (1,1)) ((1,1), s)
+parse p s = unS (unR p (1,0)) ((1,0), s)

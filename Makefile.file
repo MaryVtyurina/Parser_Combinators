@@ -1,9 +1,9 @@
-all: Parser_data_definition
-	./Parser_data_definition
+all: main.hs
+	./main
 	./BasicTests
 
-parse_for_data_definition: Parser_data_definition.hs
-	ghc Parser_data_definition.hs
+main: main.hs
+	ghc main.hs
 
 test : basic_tests.hs
 	ghc basic_tests.hs

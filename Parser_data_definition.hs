@@ -1,10 +1,6 @@
--------------------------------------------------------------------
---                          Example
--------------------------------------------------------------------
 -- /Users/Maria/Library/Haskell/bin/ghcid "--command=ghci Parse_list.hs"     -- for ghcid
-
+module Parser_data_definition where
 import ParserCombinators
-import Control.Applicative hiding (many)
 
 {-#LANGUAGE MultiParamTypeClasses, MonadComprehensions #-}
 
@@ -14,25 +10,7 @@ data Type = Arrow Type Type -- function
           | Con String      -- constructor
           | Tuple [Type]    -- Tuple
           | List Type       -- List
-          deriving (Show)
-
--- parses non empty sequences of items separated by operators that associate to the right, rather than to the left
-chainr1 :: Parser a -> Parser (a -> a -> a) -> Parser a
-p `chainr1` op = rec <|> p where
-        rec = do
-                    x <- p
-                    f <- op
-                    y <- p `chainr1` op
-                    return $ f x y
-
-
-chainl1 :: Parser a -> Parser (a -> a -> a) -> Parser a
-p `chainl1` op = p >>= rest where
-    rest x = one x <|> return x
-    one x = do
-        f <- op
-        y <- p
-        rest (f x y)
+          deriving (Show, Eq)
 
 variable = identifier ["data"]
 
@@ -76,11 +54,4 @@ datadecl = do
              b  <- condecl `sepby` symbol "|"
              return (x,xs,b)
 
-
-datadecls = first $ many_offside $ many datadecl
-
-main = do
-    s <- readFile "test.txt"
-    -- print $ parse list "[a] a"
-    -- print $ parse datadecls s
-    mapM_ (putStrLn . show) $ parse datadecls s
+datadecls = first $ many_offside datadecl
