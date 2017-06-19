@@ -82,3 +82,5 @@ instance Monad m => StateMonad (StateM m s) s where
 
 -- newtype I a = I a
 -- type State s a = StateM I s a -- non-transformer -- State { unS :: s -> (a,s) }
+-- Конференция
+-- 7-9 слайдов

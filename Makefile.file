@@ -1,9 +1,0 @@
-all: main.hs
-	./main
-	./BasicTests
-
-main: main.hs
-	ghc main.hs
-
-test : basic_tests.hs
-	ghc basic_tests.hs

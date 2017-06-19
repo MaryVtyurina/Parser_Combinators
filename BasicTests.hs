@@ -1,4 +1,4 @@
-module BasicTests where
+
 import ParserCombinators
 import Parser_data_definition
 
@@ -140,3 +140,5 @@ run_all = do
         print $ Test "var_list" [test_var1, test_var2, test_list1, test_list2]
         print $ Test "tuple" [test_tuple1, test_tuple2, test_tuple3]
         print $ Test "constructor_condecl" [test_con1, test_con1, test_condecl1]
+
+main = run_all

@@ -208,4 +208,4 @@ many1_offside p = [vs | (pos, _) <- fetch
 many_offside :: Parser a -> Parser [a]
 many_offside p = many1_offside p <|> return []
 
-parse p s = unS (unR p (1,0)) ((1,0), s)
+parse p s = unS (unR p (0,0)) ((0,0), s)
