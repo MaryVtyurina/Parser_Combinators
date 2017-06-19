@@ -1,9 +1,11 @@
 main : main.hs
 	ghc main.hs
-	ghc BasicTests.hs
 
-test : BasicTests.hs
-	./BasicTests
+test : BasicTests
+  ./BasicTests
 
-check : main.hs
+BasicTests: BasicTests.hs
+  ghc BasicTests.hs
+
+check : main
 	  ./main
